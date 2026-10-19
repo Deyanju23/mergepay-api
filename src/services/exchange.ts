@@ -1,9 +1,9 @@
-import pino from "pino";
 import { config } from "../config";
 import { Errors } from "../errors";
+import { createLogger } from "../lib/logger";
 import { fetchWithRetry } from "./retry";
 
-const log = pino({ name: "exchange" });
+const log = createLogger({ name: "exchange" });
 /** The only two assets this module quotes against each other. */
 export type AssetCode = "XLM" | "USDC";
 /**

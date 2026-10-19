@@ -9,9 +9,9 @@
  * Horizon I/O is kept in this module so tests can mock a single dependency.
  */
 import { Horizon, Memo } from "@stellar/stellar-sdk";
-import pino from "pino";
 import { config } from "../config";
 import { Errors } from "../errors";
+import { createLogger } from "../lib/logger";
 import { withTimeout, TimeoutError, TransportError } from "./timeout";
 import {
   classifyHorizonError,
@@ -26,7 +26,7 @@ import {
 } from "../lib/memo";
 
 let _server: Horizon.Server | null = null;
-const log = pino({ name: "horizon" });
+const log = createLogger({ name: "horizon" });
 /**
  * Lazily constructed Horizon client, shared by every call in this module so
  * connection reuse is the default and tests only need to mock `HORIZON_URL`.

@@ -8,7 +8,6 @@
  * from business-logic errors.
  */
 
-import pino from "pino";
 import {
   Account,
   Asset,
@@ -24,6 +23,7 @@ import {
 import { config } from "../config";
 import { Errors } from "../errors";
 import { ProviderError } from "../lib/provider-error";
+import { createLogger } from "../lib/logger";
 import { validateAssetSpec, assetConfigToSpec } from "./assets";
 import { withTimeout, toProviderError } from "./timeout";
 import { defaultReadPolicy, logRetryAttempt, withRetry, type RetryPolicy } from "./retry";
@@ -36,7 +36,7 @@ import {
 let _servers: Horizon.Server[] | null = null;
 let activeServer = 0;
 const failedUntil = new Map<number, number>();
-const log = pino({ name: "stellar" });
+const log = createLogger({ name: "stellar" });
 
 function servers(): Horizon.Server[] {
   if (!_servers) _servers = config.HORIZON_ENDPOINTS.map((url) => new Horizon.Server(url));

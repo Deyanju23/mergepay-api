@@ -20,8 +20,10 @@
  *    logged as its own key is censored even if it never passes through a
  *    serializer.
  *
- * Workers and services that create their own `pino()` instances directly
- * should migrate to this factory to get the serializers automatically.
+ * Every service and worker logger goes through this factory (see
+ * tests/logger-serializers.test.ts, which scans the sources and fails if a
+ * module constructs a bare `pino()` logger), so a credential cannot reach a
+ * log stream by picking a module whose logger skipped the redaction rules.
  */
 import pino from "pino";
 import type { LoggerOptions as PinoLoggerOptions } from "pino";
@@ -170,7 +172,11 @@ export interface LoggerOptions {
 export function createLogger(options: LoggerOptions): pino.Logger {
   return pino({
     name: options.name,
-    level: options.level,
+    // Omitted rather than passed as `undefined`: Pino 9 treats an explicitly
+    // undefined `level` as an unknown custom level and throws before the
+    // logger exists. Leaving the key out lets Pino's own default ("info")
+    // apply.
+    ...(options.level ? { level: options.level } : {}),
     serializers: LOGGER_SERIALIZERS,
     redact: redactOptions(),
     ...options.opts,

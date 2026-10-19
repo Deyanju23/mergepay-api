@@ -19,6 +19,8 @@
  *     serializers against a destination that discards its input, so a
  *     serializer that throws or a secret that slips through fails `npm test`.
  */
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import pino from "pino";
 
@@ -375,6 +377,41 @@ describe("credentials logged outside a serializer", () => {
     // Non-credential context survives, or the line would be useless.
     expect(line.groupId).toBe("group_1");
     expect(JSON.stringify(line)).not.toContain(BEARER_TOKEN);
+  });
+});
+
+// Issue #379 — a serializer only protects the streams that are configured with
+// it. The services and workers each used to build their own bare pino logger,
+// which meant a credential logged there skipped both the serializers and the
+// redaction paths. This scan keeps the shared factory as the only way to
+// construct a logger: a future module that reaches for `pino(...)` directly
+// fails `npm test` instead of silently emitting unredacted lines.
+describe("logger factory adoption", () => {
+  it("no module outside src/lib/logger.ts constructs a bare Pino logger", () => {
+    const root = path.resolve(__dirname, "../src");
+    const offenders: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (
+          entry.name.endsWith(".ts") &&
+          full !== path.join(root, "lib", "logger.ts")
+        ) {
+          // `pino(...)` is a construction; `pino.Logger` is a type reference
+          // and is fine — what must not exist is a logger built without the
+          // shared serializers and redaction rules.
+          if (/\bpino\s*\(/.test(readFileSync(full, "utf8"))) {
+            offenders.push(path.relative(root, full));
+          }
+        }
+      }
+    };
+
+    walk(root);
+    expect(offenders).toEqual([]);
   });
 });
 

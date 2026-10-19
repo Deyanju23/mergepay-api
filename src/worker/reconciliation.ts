@@ -1,11 +1,11 @@
-import pino from "pino";
 import { env } from "../config";
 import { prisma } from "../db";
 import { stellar } from "../services/stellar";
 import { audit } from "../services/audit";
 import { type CorrelationContext, jobContext, loggerWithContext } from "../lib/correlation";
+import { createLogger } from "../lib/logger";
 
-const log = pino({ name: "transaction-reconciliation" });
+const log = createLogger({ name: "transaction-reconciliation" });
 
 type ReconciliationTable = "settlement" | "withdrawal" | "treasuryProposal";
 

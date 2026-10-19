@@ -60,7 +60,6 @@
  * a scrubbed reason — never an XDR, memo secret, or token.
  */
 import { randomUUID } from "node:crypto";
-import pino from "pino";
 import { config } from "../../config";
 import { prisma } from "../../db";
 import { AppError, Errors } from "../../errors";
@@ -69,6 +68,7 @@ import {
   jobContext,
   loggerWithContext,
 } from "../../lib/correlation";
+import { createLogger } from "../../lib/logger";
 import { audit } from "../../services/audit";
 import { AuditAction } from "../../services/audit-actions";
 import { safeFailureMessage } from "../../services/job-retry";
@@ -89,7 +89,7 @@ import {
 import { stellar } from "../../services/stellar";
 import { TimeoutError, TransportError } from "../../services/timeout";
 
-const log = pino({ name: "transaction-status-sync" });
+const log = createLogger({ name: "transaction-status-sync" });
 
 /**
  * Identifies this process in settlement leases, so a claim taken here is only

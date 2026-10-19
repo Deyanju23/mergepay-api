@@ -32,7 +32,6 @@
  * record in one transaction.
  */
 import { randomUUID } from "node:crypto";
-import pino from "pino";
 import { config, env } from "../config";
 import { prisma } from "../db";
 import { isIntentExpired } from "../lib/time-bounds";
@@ -92,6 +91,7 @@ import {
   jobContext,
   loggerWithContext,
 } from "../lib/correlation";
+import { createLogger } from "../lib/logger";
 import { jobLogger, type JobLogger } from "../lib/worker-logger";
 import {
   CYCLE_TASK_RETRY_POLICY,
@@ -107,7 +107,7 @@ import {
   withRetry,
 } from "./health";
 
-const log = pino({ name: "worker" });
+const log = createLogger({ name: "worker" });
 
 /** Identifies this process in job leases, so it can release its own claims. */
 const WORKER_ID = randomUUID();

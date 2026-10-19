@@ -1,4 +1,3 @@
-import pino from "pino";
 import { prisma } from "../db";
 import { config } from "../config";
 import { stellar } from "./stellar";
@@ -7,6 +6,7 @@ import { AppError, Errors } from "../errors";
 import { applySettlementTransition } from "./settlement-machine";
 import type { CorrelationContext } from "../lib/correlation";
 import { loggerWithContext } from "../lib/correlation";
+import { createLogger } from "../lib/logger";
 import {
   verifyTransactionMemo,
   verifyPaymentOperation,
@@ -15,7 +15,7 @@ import {
 import { buildMemo, validateMemoAgainstActiveExpense } from "./memo";
 import { dispatchEvent } from "./webhook";
 
-const log = pino({ name: "settlement-reconciliation" });
+const log = createLogger({ name: "settlement-reconciliation" });
 
 /** Maximum number of reconciliation retries per settlement. */
 export const RECONCILIATION_MAX_RETRIES = 10;

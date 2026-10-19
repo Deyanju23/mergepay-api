@@ -7,13 +7,13 @@
  * creating audit records when variances are detected.
  */
 
-import pino from "pino";
 import { prisma } from "../db";
 import { config } from "../config";
+import { createLogger } from "../lib/logger";
 import { stellar } from "./stellar";
 import { audit } from "./audit";
 
-const log = pino({ name: "treasury-service" });
+const log = createLogger({ name: "treasury-service" });
 
 /**
  * Normalize a Stellar balance string to a canonical form for comparison.

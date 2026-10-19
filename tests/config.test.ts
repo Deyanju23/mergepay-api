@@ -53,6 +53,28 @@ describe("env schema — valid configurations", () => {
     expect(result.HORIZON_URL).toBe("https://horizon.stellar.org");
   });
 
+  it("accepts an uppercase network name and normalizes it to lowercase", () => {
+    const testnet = envSchema.parse({ ...validEnv, STELLAR_NETWORK: "TESTNET" });
+    expect(testnet.STELLAR_NETWORK).toBe("testnet");
+
+    const publicNetwork = envSchema.parse({
+      ...validEnv,
+      STELLAR_NETWORK: "PUBLIC",
+      HORIZON_URL: "https://horizon.stellar.org",
+    });
+    expect(publicNetwork.STELLAR_NETWORK).toBe("public");
+  });
+
+  it("still enforces the Horizon/network match for an uppercase network name", () => {
+    expect(() =>
+      envSchema.parse({
+        ...validEnv,
+        STELLAR_NETWORK: "PUBLIC",
+        HORIZON_URL: "https://horizon-testnet.stellar.org",
+      })
+    ).toThrow("HORIZON_URL must match STELLAR_NETWORK");
+  });
+
   it("coerces numeric strings to numbers", () => {
     const result = envSchema.parse({ ...validEnv, PORT: "4000", FEE_CACHE_TTL: "30" });
     expect(result.PORT).toBe(4000);
@@ -118,6 +140,42 @@ describe("env schema — invalid formats", () => {
     );
   });
 
+  it.each([
+    ["ftp", "ftp://horizon-testnet.stellar.org"],
+    ["file", "file:///etc/hosts"],
+    ["websocket", "wss://horizon-testnet.stellar.org"],
+  ])("rejects a HORIZON_URL that is well-formed but uses %s", (_label, url) => {
+    expect(() => envSchema.parse({ ...validEnv, HORIZON_URL: url })).toThrow(
+      "Horizon endpoint must be a valid http:// or https:// URL"
+    );
+  });
+
+  it("rejects a HORIZON_URLS list containing a non-URL endpoint", () => {
+    expect(() =>
+      envSchema.parse({
+        ...validEnv,
+        HORIZON_URLS: "https://horizon-testnet.stellar.org,not-a-url",
+      })
+    ).toThrow("HORIZON_URLS contains an invalid endpoint");
+  });
+
+  it("rejects a HORIZON_URLS list containing a non-http endpoint", () => {
+    expect(() =>
+      envSchema.parse({
+        ...validEnv,
+        HORIZON_URLS: "https://horizon-testnet.stellar.org,ftp://horizon-testnet.stellar.org",
+      })
+    ).toThrow("HORIZON_URLS contains an invalid endpoint");
+  });
+
+  it("accepts a HORIZON_URLS list of http(s) endpoints, whatever the spacing", () => {
+    const result = envSchema.parse({
+      ...validEnv,
+      HORIZON_URLS: " https://horizon-testnet.stellar.org , http://horizon2-testnet.stellar.org ",
+    });
+    expect(result.HORIZON_URLS).toContain("horizon2-testnet.stellar.org");
+  });
+
   it("rejects a JWT_SECRET shorter than 16 characters", () => {
     expect(() => envSchema.parse({ ...validEnv, JWT_SECRET: "short" })).toThrow(
       "JWT_SECRET must be at least 16 characters"
@@ -159,6 +217,46 @@ describe("env schema — invalid formats", () => {
         HORIZON_URL: "https://horizon-testnet.stellar.org",
       })
     ).toThrow("HORIZON_URL must match STELLAR_NETWORK");
+  });
+});
+
+// Issue #380 — the Prisma connection knobs must exist with fail-fast defaults
+// and reject values that would silently disable their protection (a zero or
+// negative timeout is not a timeout). src/db.ts turns these into the
+// datasource URL parameters and the query-timeout middleware; this block pins
+// the contract at the configuration boundary.
+describe("env schema — database timeout configuration", () => {
+  it("applies fail-fast defaults for the Prisma connection settings", () => {
+    const result = envSchema.parse(validEnv);
+    expect(result.DATABASE_QUERY_TIMEOUT_MS).toBe(10000);
+    expect(result.DATABASE_CONNECT_TIMEOUT_SECONDS).toBe(10);
+    expect(result.DATABASE_POOL_TIMEOUT_SECONDS).toBe(10);
+    expect(result.DATABASE_CONNECTION_LIMIT).toBe(5);
+  });
+
+  it("accepts explicit connection pool and timeout overrides", () => {
+    const result = envSchema.parse({
+      ...validEnv,
+      DATABASE_QUERY_TIMEOUT_MS: "2500",
+      DATABASE_CONNECT_TIMEOUT_SECONDS: "3",
+      DATABASE_POOL_TIMEOUT_SECONDS: "4",
+      DATABASE_CONNECTION_LIMIT: "20",
+    });
+    expect(result.DATABASE_QUERY_TIMEOUT_MS).toBe(2500);
+    expect(result.DATABASE_CONNECT_TIMEOUT_SECONDS).toBe(3);
+    expect(result.DATABASE_POOL_TIMEOUT_SECONDS).toBe(4);
+    expect(result.DATABASE_CONNECTION_LIMIT).toBe(20);
+  });
+
+  it.each([
+    "DATABASE_QUERY_TIMEOUT_MS",
+    "DATABASE_CONNECT_TIMEOUT_SECONDS",
+    "DATABASE_POOL_TIMEOUT_SECONDS",
+    "DATABASE_CONNECTION_LIMIT",
+  ])("rejects a non-positive or non-numeric %s", (key) => {
+    expect(() => envSchema.parse({ ...validEnv, [key]: "0" })).toThrow();
+    expect(() => envSchema.parse({ ...validEnv, [key]: "-1" })).toThrow();
+    expect(() => envSchema.parse({ ...validEnv, [key]: "ten" })).toThrow();
   });
 });
 

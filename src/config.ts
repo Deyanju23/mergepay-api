@@ -7,6 +7,29 @@ import { sep10DomainSchema } from "./lib/sep10-domain";
 // URL validation helper
 const urlSchema = z.string().url("Invalid URL format");
 
+/**
+ * A Horizon endpoint. Beyond being a well-formed URL it must use HTTP(S):
+ * Horizon is an HTTP API, so `ftp://horizon.example` passes `urlSchema` and
+ * then fails at the first request, far from the misconfiguration. Rejecting
+ * the scheme at boot makes the operator see it.
+ */
+const horizonUrlSchema = z
+  .string()
+  .url("Invalid URL format")
+  .refine((value) => {
+    // `urlSchema` has already rejected a non-URL, but every check in a Zod
+    // schema runs and collects its issue, so this callback is still invoked
+    // with the malformed input. It must answer "not HTTP(S)" rather than throw
+    // a TypeError, or the failure surfaces as an unhandled exception instead
+    // of a field-level validation message.
+    try {
+      const protocol = new URL(value).protocol;
+      return protocol === "http:" || protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Horizon endpoint must be a valid http:// or https:// URL");
+
 // Stellar public key validation (G followed by 56 base32 characters)
 const stellarPublicKeySchema = z.string().regex(/^G[A-Z0-9]{55}$/, "Invalid Stellar public key format");
 
@@ -93,14 +116,39 @@ const schema = z.object({
     .default(30 * 24 * 60 * 60 * 1000),
   JWT_AUDIENCE: z.string().default("mergepay-app"),
 
-  // Stellar configuration - required
-  STELLAR_NETWORK: z.enum(["testnet", "public"], {
-    errorMap: () => ({ message: "STELLAR_NETWORK must be either 'testnet' or 'public'" }),
-  }),
-  HORIZON_URL: urlSchema,
+  // Stellar configuration - required. The network name is case-insensitive on
+  // input — operators write "TESTNET"/"PUBLIC" from the Stellar docs as often
+  // as the lowercase form — and is normalized to lowercase so every consumer
+  // (network passphrase selection, the Horizon/network consistency check
+  // below) compares one spelling.
+  STELLAR_NETWORK: z
+    .enum(["testnet", "public", "TESTNET", "PUBLIC"], {
+      errorMap: () => ({ message: "STELLAR_NETWORK must be either 'testnet' or 'public'" }),
+    })
+    .transform((value) => value.toLowerCase() as "testnet" | "public"),
+  HORIZON_URL: horizonUrlSchema,
   // Ordered, comma-separated Horizon endpoints. HORIZON_URL remains the
-  // backwards-compatible primary endpoint when this is not set.
-  HORIZON_URLS: z.string().optional(),
+  // backwards-compatible primary endpoint when this is not set. Each entry is
+  // held to the same http(s) rule as HORIZON_URL, so a failover list cannot
+  // smuggle in an endpoint the single-URL form would have rejected.
+  HORIZON_URLS: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      if (value === undefined) return;
+      for (const entry of value.split(",").map((url) => url.trim()).filter(Boolean)) {
+        const result = horizonUrlSchema.safeParse(entry);
+        if (!result.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `HORIZON_URLS contains an invalid endpoint "${entry}": ${
+              result.error.issues[0]?.message ?? "invalid URL"
+            }`,
+          });
+          return;
+        }
+      }
+    }),
   
   // Fee configuration with sensible defaults
   FEE_CACHE_TTL: z.coerce.number().positive().default(30),

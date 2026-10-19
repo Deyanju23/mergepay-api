@@ -36,10 +36,10 @@
  * no-ops rather than regressions — that guarantee lives there, not here.
  */
 import jwt from "jsonwebtoken";
-import pino from "pino";
 import { config } from "../config";
 import { prisma } from "../db";
 import { Errors } from "../errors";
+import { createLogger } from "../lib/logger";
 import { sep24CallbackSchema, type Sep24Callback } from "../schemas/sep24";
 import { anchorService, mapAnchorStatus } from "./anchor";
 import { applyAnchorSessionTransition } from "./anchor-status";
@@ -47,7 +47,7 @@ import { audit } from "./audit";
 import { sanitizeStatusReason } from "./sep24-status";
 import { isRecognisedSep24Status } from "./sep24-types";
 
-const log = pino({ name: "sep24" });
+const log = createLogger({ name: "sep24" });
 
 /**
  * Anchor statuses that mean the transfer will not complete but which

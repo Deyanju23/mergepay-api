@@ -3,7 +3,7 @@
  * and stores them in the database for quick access.
  */
 
-import pino from "pino";
+import { createLogger } from "../../lib/logger";
 import { prisma } from "../../db";
 import { stellar } from "../../services/stellar";
 import {
@@ -13,7 +13,7 @@ import {
 } from "../../services/job-retry";
 import { withRetry, type WorkerRetryOptions } from "../health";
 
-const log = pino({ name: "balance-sync" });
+const log = createLogger({ name: "balance-sync" });
 
 const DEFAULT_ACTIVITY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const DEFAULT_REQUEST_DELAY_MS = 200; // Rate limit protection
